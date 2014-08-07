@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<base href="/mahjong/" />
+		<!--REPLACE
+			{
+			"type" :	"style",
+			"file":		"css/main.css",
+			"parse":	false,
+			"minify":	false,
+			"active":	true
+			}
+		-->
+		<link rel="stylesheet" href="css-debug/main.css" />
+		<!--/REPLACE-->
+		<!--REPLACE
+			{
+			"type" :	"script",
+			"file":		"js/main.js",
+			"parse":	true,
+			"minify":	true,
+			"active":	true
+			}
+		-->
+		<script type="text/javascript" src="js/utils.js"></script>
+		<script type="text/javascript" src="js/mahjongTile.js"></script>
+		<script type="text/javascript" src="js/mahjongDeck.js"></script>
+		<script type="text/javascript" src="js/mahjongGame.js"></script>
+		<script type="text/javascript" src="js/main.js"></script>
+		<!--/REPLACE-->
+	</head>
+	<body>
+		<!--NOBADA--><!-- ANDROID --><!--/NOBADA--><!--NOANDROID--><!-- BADA --><!--/NOANDROID-->
+		<div id="home" data-role="page" class="unselectable" style="background:transparent!important;">
+			<div class="obj-wrapper">
+				<div class="main">MAHJONG</div>
+				<div class="sub">SOLITAIRE</div>
+				<div class="buttons">
+					<a class="startButton">
+						<span class="inner">
+							<span class="icon icon-play"></span>
+						</span>
+					</a>
+				</div>
+			</div>
+		</div><!-- /#home -->
+		<div id="game" class="hidden" data-role="page" style="background:transparent!important;">
+			<div id="ui-board" class="ui board">
+			</div>
+			<div id="ui-right" class="ui right"></div>
+			<div id="debug"></div>
+		</div><!-- /#game -->
+		<div id="scores" data-role="page" class="unselectable" style="background:transparent!important;"></div><!-- /#scores -->
+		<div id="help1" data-role="page" class="unselectable" style="background:transparent!important;"></div><!-- /#help1 -->
+		<div id="help2" data-role="page" class="unselectable" style="background:transparent!important;"></div><!-- /#help2 -->
+		<div id="help3" data-role="page" class="unselectable" style="background:transparent!important;"></div><!-- /#help3 -->
+		<div id="overlay" class="hidden fadeIn"></div>
+	</body>
+</html>

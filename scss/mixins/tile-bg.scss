@@ -1,0 +1,5 @@
+/* Render background image for tiles
+*/
+@mixin tile-bg ($tile: '', $skin: 'default') {
+	//background: url('../res/img/tiles/' + $skin + '/' + $tile + '.svg') no-repeat center;
+}
