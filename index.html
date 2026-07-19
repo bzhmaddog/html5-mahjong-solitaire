@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" class="preload">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HTML5 Mahjong Solitaire</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #186b3a;
+    }
+
+    html.preload [data-role="page"] {
+      visibility: hidden;
+    }
+
+    html.preload #overlay {
+      display: none !important;
+    }
+  </style>
+  <noscript>
+    <style>
+      html.preload [data-role="page"] {
+        visibility: visible;
+      }
+    </style>
+  </noscript>
+</head>
+<body>
+  <div id="home" data-role="page" class="unselectable" style="background:transparent!important;">
+    <div class="obj-wrapper">
+      <div class="main">MAHJONG</div>
+      <div class="sub">SOLITAIRE</div>
+      <div class="buttons">
+        <a class="startButton">
+          <span class="inner">
+            <span class="icon icon-play"></span>
+          </span>
+        </a>
+        <label class="difficultyPicker" for="ui-difficulty">Difficulty</label>
+        <select id="ui-difficulty" class="difficultySelect">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div id="game" class="hidden" data-role="page" style="background:transparent!important;">
+    <button id="ui-hint" class="hintButton" type="button">Hint (3)</button>
+    <div id="game-end-screen" class="gameEndScreen hidden" aria-live="polite">
+      <div class="panel">
+        <h2 id="game-end-title">Game Over</h2>
+        <p id="game-end-message">No more legal moves.</p>
+        <div class="actions">
+          <button id="game-end-replay" type="button">Play Again</button>
+          <button id="game-end-home" type="button">Main Menu</button>
+        </div>
+      </div>
+    </div>
+    <div id="ui-board" class="ui board"></div>
+    <div id="ui-right" class="ui right"></div>
+    <div id="debug"></div>
+  </div>
+
+  <div id="scores" data-role="page" class="unselectable" style="background:transparent!important;"></div>
+  <div id="help1" data-role="page" class="unselectable" style="background:transparent!important;"></div>
+  <div id="help2" data-role="page" class="unselectable" style="background:transparent!important;"></div>
+  <div id="help3" data-role="page" class="unselectable" style="background:transparent!important;"></div>
+  <div id="overlay" class="hidden fadeIn"></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
