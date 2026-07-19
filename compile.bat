@@ -1,1 +1,0 @@
-compass compile --config ./config_prod.rb --force
