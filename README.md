@@ -1,45 +1,63 @@
 # html5-mahjong-solitaire
 
-A Mahjong Solitaire game originally built as a static HTML5/CSS3/SVG app and now being modernized onto a Vite-based workflow.
+Mahjong Solitaire built with Vite, TypeScript, SCSS, and Vitest.
 
-## Current workflow
+## Overview
 
-The active app entrypoint is `index.html`, which loads the ES module app from `src/`.
+The app entrypoint is `index.html`, which loads `src/main.ts` and `scss/main.scss`.
 
-### Development
+Current gameplay includes:
+- Full game setup and shuffle/deal flow.
+- Win/loss detection.
+- Difficulty levels (`easy`, `medium`, `hard`) with per-difficulty hint limits.
+- In-game hint system.
+- Optional debug snapshot output from the UI (and via `window` helpers).
+
+For rules currently implemented by the engine, see `GAME_RULES.md`.
+
+## Quick Start
 
 ```bash
 npm install
 npm run dev
 ```
 
-### Production build
+Vite will print a local URL (usually `http://localhost:5173`).
 
-```bash
-npm run build
-```
+## Scripts
 
-The production bundle is written to `dist/`.
+- `npm run dev`: Start the Vite dev server.
+- `npm run build`: Build a production bundle into `dist/`.
+- `npm run preview`: Preview the production build locally.
+- `npm run lint`: Run ESLint.
+- `npm run typecheck`: Run TypeScript checks with no emit.
+- `npm run test`: Run Vitest in watch mode.
+- `npm run test:run`: Run the test suite once.
+- `npm run test:coverage`: Run tests with coverage output.
+- `npm run pre-commit`: Run lint-staged, typecheck, and tests (used by Husky).
 
-## Project structure
+## Testing
 
-- `src/` contains the modernized JavaScript modules.
-- `index.html` is the Vite entrypoint.
-- `public/` contains static assets that must be served as-is.
-- `scss/` is the active stylesheet source compiled by Vite.
-- `public/res/` contains all game image assets used at runtime.
+Tests live in `tests/` and currently cover:
+- Deck composition and setup behavior.
+- Core game engine interactions.
+- Game-level behaviors.
 
-## Migration status
+Coverage reports are written under `coverage/` when using `npm run test:coverage`.
 
-- Vite and npm tooling are in place.
-- The main game modules have been migrated to ES modules.
-- Core game reset/start state handling has been repaired in the modernized code.
-- Legacy asset references required by the active stylesheet are now served through `public/`.
-- Asset files were consolidated so there is no separate top-level `res/` folder anymore.
-- The old static HTML entrypoint, bundled scripts, legacy build scripts, and editor metadata have been removed.
-- The app now imports `scss/main.scss` directly instead of relying on the legacy compiled CSS file.
+## Project Structure
 
-## Remaining modernization work
+- `src/`: TypeScript source modules for game logic and UI wiring.
+- `tests/`: Vitest test suite.
+- `scss/`: SCSS styles.
+- `public/`: Static assets served as-is.
+- `public/res/skins/default/`: Tile, UI, and font assets used at runtime.
+- `GAME_RULES.md`: Human-readable rules extracted from the current runtime behavior.
 
-- Add automated tests around tile matching, deck setup, and reset behavior.
-- Continue simplifying the remaining style and asset pipeline.
+## Debug Helpers
+
+In the browser console, these helpers are exposed for inspection:
+- `window.getPot()`
+- `window.getBoard(columnIndex, tileIndex)`
+- `window.getGameDebugSnapshot()`
+- `window.getGameDebugSnapshotJson()`
