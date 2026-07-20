@@ -74,9 +74,12 @@ body {
 	padding: 0;
 	margin: 0;
 	min-height: 100%;
-	background-color: #186B3A;
+	background-color: #143724;
 	font-family: arial;
-	background: url($RES_DIR + '/skins/default/ui/board-bg.jpg') repeat fixed;
+	background-image:
+		radial-gradient(circle at 50% 42%, rgba(61, 113, 73, 0.75) 0%, rgba(27, 64, 41, 0.88) 52%, rgba(10, 28, 18, 0.97) 100%),
+		linear-gradient(160deg, rgba(255, 248, 221, 0.05) 0%, rgba(0, 0, 0, 0.24) 100%);
+	background-attachment: fixed;
 }
 
 html,
@@ -419,9 +422,20 @@ body {
 		align-items: flex-end;
 		margin-left: auto;
 		margin-right: auto;
+		border-radius: 14px;
+		background:
+			radial-gradient(circle at 50% 30%, rgba(128, 164, 115, 0.2) 0%, rgba(48, 82, 55, 0.16) 45%, rgba(11, 30, 19, 0.34) 100%),
+			linear-gradient(160deg, rgba(35, 67, 44, 0.52) 0%, rgba(13, 33, 22, 0.68) 100%);
+		box-shadow:
+			inset 0 0 0 1px rgba(192, 224, 183, 0.12),
+			inset 0 12px 28px rgba(0, 0, 0, 0.16),
+			0 12px 24px rgba(0, 0, 0, 0.28);
 
 		.col {
 			min-width: $DEFAULT_TILE_WIDTH + 2;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
 		}
 	}
 
@@ -467,13 +481,47 @@ body {
 
 /* default dimension for a 480px resolution */
 .tile {
+	--stack-depth: 0;
+	--stack-index: 0;
+	--tile-height: #{$DEFAULT_TILE_HEIGHT};
 	width: $DEFAULT_TILE_WIDTH;
 	height: $DEFAULT_TILE_HEIGHT;
-	border: 1px solid #000;
+	border: 1px solid rgba(75, 58, 38, 0.95);
 	position: relative;
-	overflow: hidden;
-	box-shadow: inset -4px 4px 4.75px 0.25px #FF0000;
-	border-radius: 5px;
+	overflow: visible;
+	border-radius: 7px;
+	transform: none;
+	transition: transform .18s ease, filter .18s ease, opacity .24s ease;
+	will-change: transform, opacity;
+	filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.35));
+
+	&.matched {
+		pointer-events: none;
+		animation: tile-match-remove .24s ease-out forwards;
+	}
+
+	&.selected-tile {
+		transform: scale(1.05);
+		filter: drop-shadow(0 10px 13px rgba(0, 0, 0, 0.42));
+		z-index: 210;
+
+		&::before {
+			content: "";
+			position: absolute;
+			inset: -3px;
+			border: 2px solid rgba(255, 223, 128, 0.5);
+			border-radius: 10px;
+			pointer-events: none;
+			box-shadow: 0 0 8px rgba(255, 214, 84, 0.35);
+		}
+
+	}
+
+	&.playable:hover {
+		transform: scale(1.05);
+		filter: drop-shadow(0 10px 13px rgba(0, 0, 0, 0.42));
+		z-index: 200;
+	}
 
 	.inner {
 		position: absolute;
@@ -481,9 +529,18 @@ body {
 		left: 0;
 		bottom: 0;
 		right: 0;
+		border-radius: 6px;
+		overflow: hidden;
+		box-shadow:
+			inset 1px 1px 0 rgba(255, 255, 255, 0.68),
+			inset -1px -1px 0 rgba(62, 45, 28, 0.46);
 
 		&.selected {
-			border: 2px dotted red;
+			border: 2px solid rgba(245, 206, 97, 0.95);
+			box-shadow:
+				inset 0 0 0 1px rgba(255, 241, 188, 0.9),
+				inset 0 0 14px rgba(255, 236, 146, 0.76),
+				0 0 10px rgba(255, 214, 84, 0.88);
 		}
 
 		&.hinted {
@@ -508,18 +565,22 @@ body {
 
 		&.back {
 			background-color: #464741; // Old browsers
-			background-image: linear-gradient(to bottom, #464741 0%, #373735 2%, #343432 4%, #343434 35%, #2a2a2a 44%, #1b1b1b 52%, #171717 56%, #020200 98%, #020200 99%, #050503 100%);
+			background-image: linear-gradient(160deg, #474741 0%, #393936 22%, #262624 59%, #060605 100%);
 		}
 
 		&.front {
 			background-color: #f0f1c5; // Old browsers
-			background-image: linear-gradient(to bottom, #f0f1c5 0%, #e6e5af 2%, #e6e6aa 5%, #e6e6aa 8%, #e8e7ae 13%, #e7e7ab 15%, #eae9b0 21%, #ededb7 52%, #f0f0bc 61%, #eeeeba 62%, #f1f1bf 67%, #f2f1c1 82%, #f5f4c6 89%, #f3f5c6 96%, #f6f5c7 100%);
+			background-image: linear-gradient(170deg, #fffef1 0%, #f8f5db 34%, #ece4be 74%, #dbcfa6 100%);
+			box-shadow:
+				inset 0 1px 0 rgba(255, 255, 255, 0.9),
+				inset 0 -2px 0 rgba(129, 107, 70, 0.5);
 		}
 
 		&> div {
 			background: url($RES_DIR + '/skins/default/tiles/tiles.svg') no-repeat -1000px -1000px;
 			width: 100%;
 			height: 100%;
+			filter: drop-shadow(0 1px 1px rgba(32, 18, 7, 0.32));
 
 			&.t-1-1 {
 				background-size: $bg-size;
@@ -750,6 +811,18 @@ body {
 	}
 }
 
+@keyframes tile-match-remove {
+	0% {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(0.72);
+	}
+}
+
 /* specific settings for 960px */
 @media only screen and (min-width: 960px) {
 
@@ -775,6 +848,7 @@ $BOARD_MIN_WIDTH: ($TILE_WIDTH + 2) * 18;
 	}
 
 	.tile {
+		--tile-height: #{$TILE_HEIGHT};
 		width: $TILE_WIDTH;
 		height: $TILE_HEIGHT;
 	}
@@ -806,6 +880,7 @@ $BOARD_MIN_WIDTH: ($TILE_WIDTH + 2) * 18;
 	}
 
 	.tile {
+		--tile-height: #{$TILE_HEIGHT};
 		width: $TILE_WIDTH;
 		height: $TILE_HEIGHT;
 	}

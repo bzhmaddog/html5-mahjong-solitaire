@@ -63,6 +63,7 @@ export class MahjongTile {
       }
 
       this.clearFadeClasses();
+      this.#element.classList.remove('matched', 'playable');
       this.#inner.classList.remove('back');
       this.#inner.classList.add('front');
       this.#content.className = `t-${this.#type}-${this.#value}`;
@@ -74,6 +75,7 @@ export class MahjongTile {
     this.#content.className = '';
     this.#inner.classList.remove('selected');
     this.#inner.classList.remove('hinted');
+    this.#element.classList.remove('matched', 'playable');
     this.#inner.classList.add('back');
     this.#inner.classList.remove('front');
     this.#visible = false;
@@ -90,10 +92,12 @@ export class MahjongTile {
   }
 
   select(): void {
+    this.#element.classList.add('selected-tile');
     this.#inner.classList.add('selected');
   }
 
   unselect(): void {
+    this.#element.classList.remove('selected-tile');
     this.#inner.classList.remove('selected');
   }
 
@@ -103,6 +107,14 @@ export class MahjongTile {
 
   clearHint(): void {
     this.#inner.classList.remove('hinted');
+  }
+
+  setPlayable(playable: boolean): void {
+    this.#element.classList.toggle('playable', playable);
+  }
+
+  markMatched(): void {
+    this.#element.classList.add('matched');
   }
 
   isVisible(): boolean {
