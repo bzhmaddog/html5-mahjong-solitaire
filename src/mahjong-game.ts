@@ -20,92 +20,68 @@ export enum HintRequestOutcome {
   NotStarted = 'not-started'
 }
 
-export interface GameDebugSnapshot {
-  difficultyHintLimit: number;
-  hintsUsed: number;
-  hintsRemaining: number;
-  hintedTileIds: number[];
-  engine: ReturnType<MahjongGameEngine['getDebugSnapshot']>;
-}
-
 export class MahjongGame {
-  readonly #boardElement: HTMLElement;
-  readonly #potElement: HTMLElement;
-  readonly #engine = new MahjongGameEngine();
-  readonly #views = new Map<number, MahjongTile>();
-  readonly #hintDurationMs = 1500;
-  readonly #matchAnimationMs = 240;
-  #hintLimit = HINT_LIMIT_BY_DIFFICULTY[Difficulty.Medium];
-  #hintsUsed = 0;
-  #hintedTileIds: number[] = [];
-  #hintTimeoutId?: number;
-  #matchAnimationTimeoutId?: number;
-  #isMatchAnimating = false;
-  #lastKnownStatus = GameStatus.Idle;
-  #onStatusChange?: (status: GameStatus) => void;
-  #initDone = false;
+  private readonly boardElement: HTMLElement;
+  private readonly potElement: HTMLElement;
+  private readonly engine = new MahjongGameEngine();
+  private readonly views = new Map<number, MahjongTile>();
+  private readonly hintDurationMs = 1500;
+  private readonly matchAnimationMs = 240;
+  
+  private hintLimit = HINT_LIMIT_BY_DIFFICULTY[Difficulty.Medium];
+  private hintsUsed = 0;
+  private hintedTileIds: number[] = [];
+  private hintTimeoutId?: number;
+  private matchAnimationTimeoutId?: number;
+  private isMatchAnimating = false;
+  private lastKnownStatus = GameStatus.Idle;
+  private onStatusChange?: (status: GameStatus) => void;
+  private initDone = false;
 
   constructor(boardElement: HTMLElement, potElement: HTMLElement) {
-    this.#boardElement = boardElement;
-    this.#potElement = potElement;
+    this.boardElement = boardElement;
+    this.potElement = potElement;
   }
 
   init(): void {
-    if (this.#initDone) {
+    if (this.initDone) {
       return;
     }
 
-    this.#boardElement.addEventListener('click', this.clickBoard);
-    this.#engine.init();
-    this.#lastKnownStatus = this.#engine.getStatus();
+    this.boardElement.addEventListener('click', this.clickBoard);
+    this.engine.init();
+    this.lastKnownStatus = this.engine.status;
     this.render();
-    this.#initDone = true;
+    this.initDone = true;
   }
 
-  getPot(): void {
-    const state = this.#engine.getState();
-    console.log('Pot Length =', state.pot.length);
-    state.pot.forEach((tile) => console.log({ type: tile.type, value: tile.value }));
+  get isStarted(): boolean {
+    return this.engine.isStarted;
   }
 
-  getBoard(columnIndex: number, tileIndex: number): void {
-    const state = this.#engine.getState();
-    const tile = state.columns[columnIndex]?.[tileIndex];
-    if (!tile) {
-      console.warn('Board position is empty', columnIndex, tileIndex);
-      return;
-    }
-
-    console.log({ type: tile.type, value: tile.value });
+  get status(): GameStatus {
+    return this.engine.status;
   }
 
-  isStarted(): boolean {
-    return this.#engine.isStarted();
-  }
-
-  getStatus(): GameStatus {
-    return this.#engine.getStatus();
+  get remainingHints(): number {
+    return Math.max(this.hintLimit - this.hintsUsed, 0);
   }
 
   setStatusChangeHandler(handler: (status: GameStatus) => void): void {
-    this.#onStatusChange = handler;
+    this.onStatusChange = handler;
   }
 
   setDifficulty(difficulty: Difficulty): void {
-    this.#hintLimit = HINT_LIMIT_BY_DIFFICULTY[difficulty];
-    this.#hintsUsed = 0;
+    this.hintLimit = HINT_LIMIT_BY_DIFFICULTY[difficulty];
+    this.hintsUsed = 0;
     this.clearHintHighlight();
-  }
-
-  getRemainingHints(): number {
-    return Math.max(this.#hintLimit - this.#hintsUsed, 0);
   }
 
   reset(): void {
     this.cancelMatchAnimation();
     this.clearHintHighlight();
-    this.#hintsUsed = 0;
-    this.#engine.reset();
+    this.hintsUsed = 0;
+    this.engine.reset();
     this.render();
     this.notifyStatusChangeIfNeeded();
   }
@@ -114,8 +90,8 @@ export class MahjongGame {
     try {
       this.cancelMatchAnimation();
       this.clearHintHighlight();
-      this.#hintsUsed = 0;
-      this.#engine.start();
+      this.hintsUsed = 0;
+      this.engine.start();
       this.render();
       this.notifyStatusChangeIfNeeded();
     } catch (error) {
@@ -124,49 +100,35 @@ export class MahjongGame {
   }
 
   showHint(): HintRequestOutcome {
-    if (!this.isStarted()) {
+    if (!this.isStarted) {
       return HintRequestOutcome.NotStarted;
     }
 
-    if (this.getRemainingHints() <= 0) {
+    if (this.remainingHints <= 0) {
       return HintRequestOutcome.NoHintsLeft;
     }
 
     this.clearHintHighlight();
-    const hint = this.#engine.findHintMatch();
+    const hint = this.engine.findHintMatch();
     if (!hint) {
       return HintRequestOutcome.NoMatchAvailable;
     }
 
-    this.#hintedTileIds = [...hint.tileIds];
-    this.#hintedTileIds.forEach((tileId) => this.#views.get(tileId)?.showHint());
-    this.#hintTimeoutId = window.setTimeout(() => this.clearHintHighlight(), this.#hintDurationMs);
-    this.#hintsUsed += 1;
+    this.hintedTileIds = [...hint.tileIds];
+    this.hintedTileIds.forEach((tileId) => this.views.get(tileId)?.showHint());
+    this.hintTimeoutId = window.setTimeout(() => this.clearHintHighlight(), this.hintDurationMs);
+    this.hintsUsed += 1;
     return HintRequestOutcome.Shown;
   }
 
-  getDebugSnapshot(): GameDebugSnapshot {
-    return {
-      difficultyHintLimit: this.#hintLimit,
-      hintsUsed: this.#hintsUsed,
-      hintsRemaining: this.getRemainingHints(),
-      hintedTileIds: [...this.#hintedTileIds],
-      engine: this.#engine.getDebugSnapshot()
-    };
-  }
-
-  getDebugSnapshotJson(space = 2): string {
-    return JSON.stringify(this.getDebugSnapshot(), null, space);
-  }
-
   private renderBoardColumns(columnCount: number): HTMLDivElement[] {
-    this.#boardElement.innerHTML = '';
+    this.boardElement.innerHTML = '';
     const columns: HTMLDivElement[] = [];
 
     for (let i = 0; i < columnCount; i += 1) {
       const column = document.createElement('div');
       column.classList.add('col');
-      this.#boardElement.appendChild(column);
+      this.boardElement.appendChild(column);
       columns.push(column);
     }
 
@@ -174,19 +136,19 @@ export class MahjongGame {
   }
 
   private getOrCreateView(tile: GameTileState): MahjongTile {
-    let view = this.#views.get(tile.id);
+    let view = this.views.get(tile.id);
     if (!view) {
       view = new MahjongTile(tile.type, tile.value, () => true, () => {
-        if (this.#isMatchAnimating) {
+        if (this.isMatchAnimating) {
           return;
         }
 
         this.clearHintHighlight();
-        const beforeState = this.#engine.getState();
-        const result = this.#engine.interactWithTile(tile.id);
+        const beforeState = this.engine.state;
+        const result = this.engine.interactWithTile(tile.id);
         this.handleActionResult(beforeState, result.outcome);
       });
-      this.#views.set(tile.id, view);
+      this.views.set(tile.id, view);
     }
 
     return view;
@@ -212,9 +174,9 @@ export class MahjongGame {
   }
 
   private render(): void {
-    const state = this.#engine.getState();
+    const state = this.engine.state;
     const columns = this.renderBoardColumns(state.columnCount);
-    this.#potElement.innerHTML = '';
+    this.potElement.innerHTML = '';
     const activeTileIds = new Set<number>();
 
     state.columns.forEach((column, columnIndex) => {
@@ -235,11 +197,11 @@ export class MahjongGame {
       element.classList.remove('matched');
       element.style.setProperty('--stack-depth', '0');
       element.style.setProperty('--stack-index', '0');
-      this.#potElement.appendChild(element);
+      this.potElement.appendChild(element);
       activeTileIds.add(tile.id);
     });
 
-    this.#views.forEach((view, tileId) => {
+    this.views.forEach((view, tileId) => {
       if (!activeTileIds.has(tileId)) {
         view.getElement().remove();
         view.unselect();
@@ -250,44 +212,44 @@ export class MahjongGame {
       }
     });
 
-    this.#hintedTileIds.forEach((tileId) => {
-      this.#views.get(tileId)?.showHint();
+    this.hintedTileIds.forEach((tileId) => {
+      this.views.get(tileId)?.showHint();
     });
 
     this.markPlayableTiles(state);
   }
 
   private clearHintHighlight(): void {
-    if (this.#hintTimeoutId !== undefined) {
-      window.clearTimeout(this.#hintTimeoutId);
-      this.#hintTimeoutId = undefined;
+    if (this.hintTimeoutId !== undefined) {
+      window.clearTimeout(this.hintTimeoutId);
+      this.hintTimeoutId = undefined;
     }
 
-    this.#hintedTileIds.forEach((tileId) => this.#views.get(tileId)?.clearHint());
-    this.#hintedTileIds = [];
+    this.hintedTileIds.forEach((tileId) => this.views.get(tileId)?.clearHint());
+    this.hintedTileIds = [];
   }
 
   private notifyStatusChangeIfNeeded(): void {
-    const status = this.#engine.getStatus();
-    if (status === this.#lastKnownStatus) {
+    const status = this.engine.status;
+    if (status === this.lastKnownStatus) {
       return;
     }
 
-    this.#lastKnownStatus = status;
-    this.#onStatusChange?.(status);
+    this.lastKnownStatus = status;
+    this.onStatusChange?.(status);
   }
 
   private markPlayableTiles(state: GameStateSnapshot): void {
     state.columns.forEach((column) => {
       const topTile = column[0];
       if (topTile) {
-        this.#views.get(topTile.id)?.setPlayable(true);
+        this.views.get(topTile.id)?.setPlayable(true);
       }
     });
 
     const potTop = state.pot.at(-1);
     if (potTop) {
-      this.#views.get(potTop.id)?.setPlayable(true);
+      this.views.get(potTop.id)?.setPlayable(true);
     }
   }
 
@@ -313,18 +275,18 @@ export class MahjongGame {
       return;
     }
 
-    this.#isMatchAnimating = true;
+    this.isMatchAnimating = true;
     removedIds.forEach((tileId) => {
-      this.#views.get(tileId)?.markMatched();
-      this.#views.get(tileId)?.setPlayable(false);
+      this.views.get(tileId)?.markMatched();
+      this.views.get(tileId)?.setPlayable(false);
     });
 
-    this.#matchAnimationTimeoutId = window.setTimeout(() => {
-      this.#matchAnimationTimeoutId = undefined;
-      this.#isMatchAnimating = false;
+    this.matchAnimationTimeoutId = window.setTimeout(() => {
+      this.matchAnimationTimeoutId = undefined;
+      this.isMatchAnimating = false;
       this.render();
       this.notifyStatusChangeIfNeeded();
-    }, this.#matchAnimationMs);
+    }, this.matchAnimationMs);
   }
 
   private handleActionResult(beforeState: GameStateSnapshot, outcome: GameActionOutcome): void {
@@ -332,7 +294,7 @@ export class MahjongGame {
       return;
     }
 
-    const afterState = this.#engine.getState();
+    const afterState = this.engine.state;
     if (outcome === GameActionOutcome.Matched) {
       this.animateMatchedTilesAndRerender(beforeState, afterState);
       return;
@@ -343,23 +305,23 @@ export class MahjongGame {
   }
 
   private cancelMatchAnimation(): void {
-    if (this.#matchAnimationTimeoutId !== undefined) {
-      window.clearTimeout(this.#matchAnimationTimeoutId);
-      this.#matchAnimationTimeoutId = undefined;
+    if (this.matchAnimationTimeoutId !== undefined) {
+      window.clearTimeout(this.matchAnimationTimeoutId);
+      this.matchAnimationTimeoutId = undefined;
     }
 
-    this.#isMatchAnimating = false;
+    this.isMatchAnimating = false;
   }
 
   private readonly clickBoard = (event: MouseEvent): void => {
-    if (this.#isMatchAnimating) {
+    if (this.isMatchAnimating) {
       return;
     }
 
     this.clearHintHighlight();
-    const boardRect = this.#boardElement.getBoundingClientRect();
+    const boardRect = this.boardElement.getBoundingClientRect();
     const x = event.clientX - boardRect.left;
-    const state = this.#engine.getState();
+    const state = this.engine.state;
     const columnWidth = boardRect.width / state.columnCount;
     const clickedColumn = Math.floor(x / columnWidth);
 
@@ -367,8 +329,8 @@ export class MahjongGame {
       return;
     }
 
-    const beforeState = this.#engine.getState();
-    const result = this.#engine.placeSelectedPotTile(clickedColumn);
+    const beforeState = this.engine.state;
+    const result = this.engine.placeSelectedPotTile(clickedColumn);
     this.handleActionResult(beforeState, result.outcome);
   };
 }

@@ -1,29 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
-import { MahjongDeck } from '../src/mahjong-deck';
+import { GameDeck } from '../src/game-deck';
 import { MahjongTile, TileType } from '../src/mahjong-tile';
 
-function collectTileCounts(deck: MahjongDeck): Map<string, number> {
+function collectTileCounts(deck: GameDeck): Map<string, number> {
+  const dealt = deck.deal(18, 6);
+  const tiles = [...dealt.columns.flat(), ...dealt.pot];
   const counts = new Map<string, number>();
 
-  for (let index = 0; index < deck.getLength(); index += 1) {
-    const { type, value } = deck.getTile(index).getInfo();
+  tiles.forEach(({ type, value }) => {
     const key = `${type}:${value}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
+  });
 
   return counts;
 }
 
-describe('MahjongDeck', () => {
+describe('GameDeck', () => {
   it('creates the full 144-tile deck', () => {
-    const deck = new MahjongDeck(() => true, () => {});
+    const deck = new GameDeck();
+    deck.reset();
+    const dealt = deck.deal(18, 6);
+    const tileCount = dealt.columns.flat().length + dealt.pot.length;
 
-    expect(deck.getLength()).toBe(144);
+    expect(tileCount).toBe(144);
   });
 
   it('matches the documented deck composition rules', () => {
-    const deck = new MahjongDeck(() => true, () => {});
+    const deck = new GameDeck();
+    deck.reset();
     const counts = collectTileCounts(deck);
 
     for (const type of [TileType.Wheels, TileType.Numbers, TileType.Bamboos] as const) {
@@ -43,11 +48,11 @@ describe('MahjongDeck', () => {
     expect(counts.size).toBe((3 * 9) + 7 + 8);
   });
 
-  it('returns an empty tile for out-of-range access', () => {
-    const deck = new MahjongDeck(() => true, () => {});
+  it('throws for impossible deal layouts', () => {
+    const deck = new GameDeck();
+    deck.reset();
 
-    expect(deck.getTile(-1).getInfo()).toEqual({ type: TileType.Empty, value: 0 });
-    expect(deck.getTile(999).getInfo()).toEqual({ type: TileType.Empty, value: 0 });
+    expect(() => deck.deal(18, 9)).toThrowError('Not enough tiles to deal the requested board layout.');
   });
 });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { canTilesMatch } from '../src/game-rules';
 import { Difficulty, HintRequestOutcome, MahjongGame } from '../src/mahjong-game';
@@ -38,6 +38,15 @@ describe('game rules', () => {
 });
 
 describe('MahjongGame', () => {
+  it('reports hint as not started before the first deal', () => {
+    const { board, pot } = createGameUi();
+    const game = new MahjongGame(board, pot);
+
+    game.init();
+
+    expect(game.showHint()).toBe(HintRequestOutcome.NotStarted);
+  });
+
   it('initializes 18 empty board columns', () => {
     const { board, pot } = createGameUi();
     const game = new MahjongGame(board, pot);
@@ -47,7 +56,7 @@ describe('MahjongGame', () => {
     expect(board.querySelectorAll('.col')).toHaveLength(18);
     expect(board.querySelectorAll('.tile')).toHaveLength(0);
     expect(pot.querySelectorAll('.tile')).toHaveLength(0);
-    expect(game.isStarted()).toBe(false);
+    expect(game.isStarted).toBe(false);
   });
 
   it('deals the board and pot according to the documented start layout', () => {
@@ -57,7 +66,7 @@ describe('MahjongGame', () => {
     game.init();
     game.start();
 
-    expect(game.isStarted()).toBe(true);
+    expect(game.isStarted).toBe(true);
     expect(board.querySelectorAll('.tile')).toHaveLength(108);
     expect(pot.querySelectorAll('.tile')).toHaveLength(36);
     expect(board.querySelectorAll('.front')).toHaveLength(18);
@@ -72,7 +81,7 @@ describe('MahjongGame', () => {
     game.start();
     game.reset();
 
-    expect(game.isStarted()).toBe(false);
+    expect(game.isStarted).toBe(false);
     expect(board.querySelectorAll('.col')).toHaveLength(18);
     expect(board.querySelectorAll('.tile')).toHaveLength(0);
     expect(pot.querySelectorAll('.tile')).toHaveLength(0);
@@ -85,7 +94,7 @@ describe('MahjongGame', () => {
     game.init();
     game.start();
 
-    expect(game.getRemainingHints()).toBe(3);
+    expect(game.remainingHints).toBe(3);
   });
 
   it('configures hint quotas by difficulty', () => {
@@ -94,13 +103,13 @@ describe('MahjongGame', () => {
 
     game.init();
     game.setDifficulty(Difficulty.Easy);
-    expect(game.getRemainingHints()).toBe(6);
+    expect(game.remainingHints).toBe(6);
 
     game.setDifficulty(Difficulty.Medium);
-    expect(game.getRemainingHints()).toBe(3);
+    expect(game.remainingHints).toBe(3);
 
     game.setDifficulty(Difficulty.Hard);
-    expect(game.getRemainingHints()).toBe(0);
+    expect(game.remainingHints).toBe(0);
   });
 
   it('blocks hint usage in hard mode', () => {
@@ -112,7 +121,7 @@ describe('MahjongGame', () => {
     game.start();
 
     expect(game.showHint()).toBe(HintRequestOutcome.NoHintsLeft);
-    expect(game.getRemainingHints()).toBe(0);
+    expect(game.remainingHints).toBe(0);
   });
 
   it('resets available hints when a new game starts', () => {
@@ -123,7 +132,7 @@ describe('MahjongGame', () => {
     game.setDifficulty(Difficulty.Medium);
     game.start();
 
-    while (game.getRemainingHints() > 0) {
+    while (game.remainingHints > 0) {
       const outcome = game.showHint();
       if (outcome !== HintRequestOutcome.Shown) {
         break;
@@ -132,7 +141,7 @@ describe('MahjongGame', () => {
 
     game.reset();
     game.start();
-    expect(game.getRemainingHints()).toBe(3);
+    expect(game.remainingHints).toBe(3);
   });
 
   it('notifies status changes when game starts and resets', () => {
@@ -149,5 +158,18 @@ describe('MahjongGame', () => {
     game.reset();
 
     expect(transitions).toEqual([GameStatus.Running, GameStatus.Idle]);
+  });
+
+  it('shows an alert when start is called while a game is already started', () => {
+    const { board, pot } = createGameUi();
+    const game = new MahjongGame(board, pot);
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    game.init();
+    game.start();
+    game.start();
+
+    expect(alertSpy).toHaveBeenCalledWith('A game is already started. Please reset first.');
+    alertSpy.mockRestore();
   });
 });

@@ -12,7 +12,8 @@
       background: #186b3a;
     }
 
-    html.preload [data-role="page"] {
+    html.preload #home,
+    html.preload #game {
       visibility: hidden;
     }
 
@@ -22,14 +23,23 @@
   </style>
   <noscript>
     <style>
-      html.preload [data-role="page"] {
-        visibility: visible;
+      html.preload #home,
+      html.preload #game,
+      #overlay {
+        display: none !important;
       }
     </style>
   </noscript>
 </head>
 <body>
-  <div id="home" data-role="page" class="unselectable" style="background:transparent!important;">
+  <noscript>
+    <div role="alert">
+      This game requires JavaScript and cannot be played with JavaScript disabled.
+      Please enable JavaScript in your browser and refresh the page.
+    </div>
+  </noscript>
+
+  <div id="home" class="unselectable">
     <div class="obj-wrapper">
       <div class="main">MAHJONG</div>
       <div class="sub">SOLITAIRE</div>
@@ -49,7 +59,7 @@
     </div>
   </div>
 
-  <div id="game" class="hidden" data-role="page" style="background:transparent!important;">
+  <div id="game" class="hidden" style="background:transparent!important;">
     <button id="ui-hint" class="hintButton" type="button">Hint (3)</button>
     <div id="game-end-screen" class="gameEndScreen hidden" aria-live="polite">
       <div class="panel">
