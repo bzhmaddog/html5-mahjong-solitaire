@@ -11,7 +11,6 @@ Current gameplay includes:
 - Win/loss detection.
 - Difficulty levels (`easy`, `medium`, `hard`) with per-difficulty hint limits.
 - In-game hint system.
-- Optional debug snapshot output from the UI (and via `window` helpers).
 
 For rules currently implemented by the engine, see `GAME_RULES.md`.
 
@@ -53,11 +52,3 @@ Coverage reports are written under `coverage/` when using `npm run test:coverage
 - `public/`: Static assets served as-is.
 - `public/res/skins/default/`: Tile, UI, and font assets used at runtime.
 - `GAME_RULES.md`: Human-readable rules extracted from the current runtime behavior.
-
-## Debug Helpers
-
-In the browser console, these helpers are exposed for inspection:
-- `window.getPot()`
-- `window.getBoard(columnIndex, tileIndex)`
-- `window.getGameDebugSnapshot()`
-- `window.getGameDebugSnapshotJson()`
