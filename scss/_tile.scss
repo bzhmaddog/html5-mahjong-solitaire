@@ -1,0 +1,176 @@
+@use 'globals' as *;
+
+/* default dimension for a 480px resolution */
+.tile {
+	--stack-depth: 0;
+	--stack-index: 0;
+	--tile-height: #{$DEFAULT_TILE_HEIGHT};
+	width: $DEFAULT_TILE_WIDTH;
+	height: $DEFAULT_TILE_HEIGHT;
+	border: 1px solid rgba(75, 58, 38, 0.95);
+	position: relative;
+	overflow: visible;
+	border-radius: 7px;
+	transform: none;
+	transition: transform .18s ease, filter .18s ease, opacity .24s ease;
+	will-change: transform, opacity;
+	filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.35));
+
+	.selection-outline {
+		position: absolute;
+		inset: -2px;
+		width: calc(100% + 4px);
+		height: calc(100% + 4px);
+		pointer-events: none;
+		opacity: 0;
+		z-index: 1;
+		transition: opacity .18s ease;
+	}
+
+	.selection-track {
+		fill: none;
+		stroke: rgba(236, 231, 221, 0.34);
+		stroke-width: 3;
+	}
+
+	.selection-runner {
+		fill: none;
+		stroke: #facc15;
+		stroke-width: 3;
+		stroke-linecap: round;
+		stroke-dasharray: 90 500;
+		stroke-dashoffset: 0;
+		animation: selected-tile-runner 1.6s linear infinite;
+		animation-play-state: paused;
+		filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.7));
+	}
+
+	.tile-content-mask {
+		position: absolute;
+		inset: 3px;
+		border-radius: 6px;
+		overflow: hidden;
+		background: #2c2b27;
+		z-index: 2;
+	}
+
+	&.matched {
+		pointer-events: none;
+		animation: tile-match-remove .24s ease-out forwards;
+	}
+
+	&.selected-tile {
+		transform: scale(1.05);
+		filter: drop-shadow(0 10px 13px rgba(0, 0, 0, 0.42));
+		z-index: 210;
+
+		.selection-outline {
+			opacity: 1;
+		}
+
+		.selection-runner {
+			animation-play-state: running;
+		}
+
+	}
+
+	&.playable:hover {
+		transform: scale(1.05);
+		filter: drop-shadow(0 10px 13px rgba(0, 0, 0, 0.42));
+		z-index: 200;
+	}
+
+	.inner {
+		position: absolute;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		right: 0;
+		border-radius: 6px;
+		overflow: hidden;
+		box-shadow:
+			inset 1px 1px 0 rgba(255, 255, 255, 0.68),
+			inset -1px -1px 0 rgba(62, 45, 28, 0.46);
+
+		&.selected {
+			box-shadow:
+				inset 0 0 0 1px rgba(255, 241, 188, 0.88),
+				inset 0 0 10px rgba(255, 236, 146, 0.58);
+		}
+
+		&.hinted {
+			border: 3px solid #ffe56e;
+			box-shadow:
+				inset 0 0 0 2px rgba(48, 34, 0, 0.85),
+				inset 0 0 16px rgba(255, 242, 150, 0.85),
+				0 0 0 2px rgba(255, 247, 184, 0.95);
+			animation: hint-pulse .65s ease-in-out infinite alternate;
+
+			&::after {
+				content: "";
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				pointer-events: none;
+				background: radial-gradient(circle at 50% 45%, rgba(255, 248, 170, 0.75) 0%, rgba(255, 233, 95, 0.45) 38%, rgba(255, 214, 0, 0) 78%);
+			}
+		}
+
+		&.back {
+			background-color: #464741; // Old browsers
+			background-image: linear-gradient(160deg, #474741 0%, #393936 22%, #262624 59%, #060605 100%);
+		}
+
+		&.front {
+			background-color: #f0f1c5; // Old browsers
+			background-image: linear-gradient(170deg, #fffef1 0%, #f8f5db 34%, #ece4be 74%, #dbcfa6 100%);
+			box-shadow:
+				inset 0 1px 0 rgba(255, 255, 255, 0.9),
+				inset 0 -2px 0 rgba(129, 107, 70, 0.5);
+		}
+
+		&> div {
+			background: url($RES_DIR + '/skins/default/tiles/tiles.svg') no-repeat -1000px -1000px;
+			width: 100%;
+			height: 100%;
+			filter: drop-shadow(0 1px 1px rgba(32, 18, 7, 0.32));
+		}
+	}
+}
+
+@keyframes selected-tile-runner {
+	to {
+		stroke-dashoffset: -590;
+	}
+}
+
+@keyframes hint-pulse {
+	0% {
+		box-shadow:
+			inset 0 0 0 2px rgba(48, 34, 0, 0.85),
+			inset 0 0 14px rgba(255, 242, 150, 0.75),
+			0 0 8px rgba(255, 230, 105, 0.55);
+	}
+
+	100% {
+		box-shadow:
+			inset 0 0 0 2px rgba(48, 34, 0, 0.95),
+			inset 0 0 20px rgba(255, 247, 190, 0.95),
+			0 0 14px rgba(255, 230, 105, 0.95);
+	}
+}
+
+@keyframes tile-match-remove {
+	0% {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(0.72);
+	}
+}
+

@@ -18,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const homeEl = document.getElementById('home');
   const gameEl = document.getElementById('game');
   const hintButton = document.getElementById('ui-hint');
-  const debugButton = document.getElementById('ui-debug');
   const gameEndScreen = document.getElementById('game-end-screen');
   const gameEndTitle = document.getElementById('game-end-title');
   const gameEndMessage = document.getElementById('game-end-message');
@@ -128,24 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('No direct match found. You can only move the top pot tile to an empty column.');
     }
   });
-  if (debugButton) {
-    const debugButtonEl = debugButton as HTMLButtonElement;
-    debugButtonEl.addEventListener('click', async () => {
-      const snapshotJson = game.getDebugSnapshotJson();
-      console.log(snapshotJson);
 
-      try {
-        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
-          throw new Error('Clipboard API unavailable');
-        }
-
-        await navigator.clipboard.writeText(snapshotJson);
-        alert('Debug snapshot copied to clipboard and logged to console.');
-      } catch {
-        alert('Debug snapshot logged to console. Copy it from the DevTools console.');
-      }
-    });
-  }
   game.init();
   game.setDifficulty(Difficulty.Medium);
   updateHintButton();
