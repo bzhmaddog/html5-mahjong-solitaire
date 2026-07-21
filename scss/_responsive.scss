@@ -1,0 +1,64 @@
+@use 'globals' as *;
+
+/* specific settings for 960px */
+@media only screen and (min-width: 960px) {
+
+$TILE_WIDTH: 50px;
+$TILE_HEIGHT: $TILE_WIDTH * $TILE_RATIO;
+$BOARD_MIN_WIDTH: ($TILE_WIDTH + 2) * 18;
+
+	.ui {
+
+		&.board {
+			width: $BOARD_MIN_WIDTH;
+			min-height: 7 * $TILE_HEIGHT;
+
+			.col {
+				min-width: $TILE_WIDTH + 2;
+			}
+		}
+
+		&.right {
+			width:$TILE_WIDTH + 5;
+			height: $TILE_HEIGHT + 5;
+		}
+	}
+
+	.tile {
+		--tile-height: #{$TILE_HEIGHT};
+		width: $TILE_WIDTH;
+		height: $TILE_HEIGHT;
+	}
+}
+
+
+/* specific settings for 1400px */
+@media only screen and (min-width: 1400px) {
+
+$TILE_WIDTH: 60px;
+$TILE_HEIGHT: $TILE_WIDTH * $TILE_RATIO;
+$BOARD_MIN_WIDTH: ($TILE_WIDTH + 2) * 18;
+
+	.ui {
+
+		&.board {
+			width: $BOARD_MIN_WIDTH;
+			min-height: 7 * $TILE_HEIGHT;
+
+			.col {
+				min-width: $TILE_WIDTH + 2;
+			}
+		}
+
+		&.right {
+			width: $TILE_WIDTH + 5;
+			height: $TILE_HEIGHT + 5;
+		}
+	}
+
+	.tile {
+		--tile-height: #{$TILE_HEIGHT};
+		width: $TILE_WIDTH;
+		height: $TILE_HEIGHT;
+	}
+}

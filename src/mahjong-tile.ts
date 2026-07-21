@@ -23,6 +23,7 @@ export class MahjongTile {
   readonly #content: HTMLDivElement;
   readonly #inner: HTMLDivElement;
   readonly #element: HTMLDivElement;
+  readonly #selectionOverlay: SVGSVGElement;
   readonly #onFlip: TileFlipHandler;
   #visible = false;
 
@@ -38,9 +39,15 @@ export class MahjongTile {
     this.#inner.classList.add('inner', 'back');
     this.#inner.appendChild(this.#content);
 
+    const contentMask = document.createElement('div');
+    contentMask.classList.add('tile-content-mask');
+    contentMask.appendChild(this.#inner);
+
+    this.#selectionOverlay = this.createSelectionOverlay();
+
     this.#element = document.createElement('div');
     this.#element.classList.add('tile');
-    this.#element.appendChild(this.#inner);
+    this.#element.append(this.#selectionOverlay, contentMask);
     this.#element.addEventListener('click', (event) => {
       event.stopPropagation();
       onClick(event, this);
@@ -63,6 +70,7 @@ export class MahjongTile {
       }
 
       this.clearFadeClasses();
+      this.#element.classList.remove('matched', 'playable');
       this.#inner.classList.remove('back');
       this.#inner.classList.add('front');
       this.#content.className = `t-${this.#type}-${this.#value}`;
@@ -74,6 +82,7 @@ export class MahjongTile {
     this.#content.className = '';
     this.#inner.classList.remove('selected');
     this.#inner.classList.remove('hinted');
+    this.#element.classList.remove('matched', 'playable');
     this.#inner.classList.add('back');
     this.#inner.classList.remove('front');
     this.#visible = false;
@@ -90,10 +99,12 @@ export class MahjongTile {
   }
 
   select(): void {
+    this.#element.classList.add('selected-tile');
     this.#inner.classList.add('selected');
   }
 
   unselect(): void {
+    this.#element.classList.remove('selected-tile');
     this.#inner.classList.remove('selected');
   }
 
@@ -105,12 +116,47 @@ export class MahjongTile {
     this.#inner.classList.remove('hinted');
   }
 
+  setPlayable(playable: boolean): void {
+    this.#element.classList.toggle('playable', playable);
+  }
+
+  markMatched(): void {
+    this.#element.classList.add('matched');
+  }
+
   isVisible(): boolean {
     return this.#visible;
   }
 
   private clearFadeClasses(): void {
     this.#element.classList.remove('fadedOut-fast', 'fadedOut-slow', 'fadedIn-fast', 'fadedIn-slow');
+  }
+
+  private createSelectionOverlay(): SVGSVGElement {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const overlay = document.createElementNS(namespace, 'svg');
+    overlay.classList.add('selection-outline');
+    overlay.setAttribute('viewBox', '0 0 100 100');
+    overlay.setAttribute('preserveAspectRatio', 'none');
+    overlay.setAttribute('aria-hidden', 'true');
+
+    const createRect = (className: string): SVGRectElement => {
+      const rect = document.createElementNS(namespace, 'rect');
+      rect.setAttribute('class', className);
+      rect.setAttribute('x', '1');
+      rect.setAttribute('y', '1');
+      rect.setAttribute('width', '98');
+      rect.setAttribute('height', '98');
+      rect.setAttribute('rx', '18');
+      rect.setAttribute('pathLength', '590');
+      return rect;
+    };
+
+    const track = createRect('selection-track');
+    const runner = createRect('selection-runner');
+    overlay.append(track, runner);
+
+    return overlay;
   }
 
   private validate(): void {

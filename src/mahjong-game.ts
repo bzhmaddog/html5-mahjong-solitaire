@@ -1,4 +1,4 @@
-import { GameActionOutcome, GameStatus, GameTileState, MahjongGameEngine } from './mahjong-game-engine';
+import { GameActionOutcome, GameStateSnapshot, GameStatus, GameTileState, MahjongGameEngine } from './mahjong-game-engine';
 import { MahjongTile } from './mahjong-tile';
 
 export enum Difficulty {
@@ -34,10 +34,13 @@ export class MahjongGame {
   readonly #engine = new MahjongGameEngine();
   readonly #views = new Map<number, MahjongTile>();
   readonly #hintDurationMs = 1500;
+  readonly #matchAnimationMs = 240;
   #hintLimit = HINT_LIMIT_BY_DIFFICULTY[Difficulty.Medium];
   #hintsUsed = 0;
   #hintedTileIds: number[] = [];
   #hintTimeoutId?: number;
+  #matchAnimationTimeoutId?: number;
+  #isMatchAnimating = false;
   #lastKnownStatus = GameStatus.Idle;
   #onStatusChange?: (status: GameStatus) => void;
   #initDone = false;
@@ -99,6 +102,7 @@ export class MahjongGame {
   }
 
   reset(): void {
+    this.cancelMatchAnimation();
     this.clearHintHighlight();
     this.#hintsUsed = 0;
     this.#engine.reset();
@@ -108,6 +112,7 @@ export class MahjongGame {
 
   start(): void {
     try {
+      this.cancelMatchAnimation();
       this.clearHintHighlight();
       this.#hintsUsed = 0;
       this.#engine.start();
@@ -172,12 +177,14 @@ export class MahjongGame {
     let view = this.#views.get(tile.id);
     if (!view) {
       view = new MahjongTile(tile.type, tile.value, () => true, () => {
-        this.clearHintHighlight();
-        const result = this.#engine.interactWithTile(tile.id);
-        if (result.outcome !== GameActionOutcome.Ignored) {
-          this.render();
-          this.notifyStatusChangeIfNeeded();
+        if (this.#isMatchAnimating) {
+          return;
         }
+
+        this.clearHintHighlight();
+        const beforeState = this.#engine.getState();
+        const result = this.#engine.interactWithTile(tile.id);
+        this.handleActionResult(beforeState, result.outcome);
       });
       this.#views.set(tile.id, view);
     }
@@ -199,6 +206,8 @@ export class MahjongGame {
       view.unselect();
     }
 
+    view.setPlayable(false);
+
     return view;
   }
 
@@ -209,16 +218,24 @@ export class MahjongGame {
     const activeTileIds = new Set<number>();
 
     state.columns.forEach((column, columnIndex) => {
-      column.forEach((tile) => {
+      column.forEach((tile, tileIndex) => {
         const view = this.applyTileState(tile);
-        columns[columnIndex].appendChild(view.getElement());
+        const element = view.getElement();
+        element.classList.remove('matched');
+        element.style.setProperty('--stack-depth', `${Math.min(tileIndex, 3)}`);
+        element.style.setProperty('--stack-index', `${tileIndex}`);
+        columns[columnIndex].appendChild(element);
         activeTileIds.add(tile.id);
       });
     });
 
     state.pot.forEach((tile) => {
       const view = this.applyTileState(tile);
-      this.#potElement.appendChild(view.getElement());
+      const element = view.getElement();
+      element.classList.remove('matched');
+      element.style.setProperty('--stack-depth', '0');
+      element.style.setProperty('--stack-index', '0');
+      this.#potElement.appendChild(element);
       activeTileIds.add(tile.id);
     });
 
@@ -236,6 +253,8 @@ export class MahjongGame {
     this.#hintedTileIds.forEach((tileId) => {
       this.#views.get(tileId)?.showHint();
     });
+
+    this.markPlayableTiles(state);
   }
 
   private clearHintHighlight(): void {
@@ -258,7 +277,85 @@ export class MahjongGame {
     this.#onStatusChange?.(status);
   }
 
+  private markPlayableTiles(state: GameStateSnapshot): void {
+    state.columns.forEach((column) => {
+      const topTile = column[0];
+      if (topTile) {
+        this.#views.get(topTile.id)?.setPlayable(true);
+      }
+    });
+
+    const potTop = state.pot.at(-1);
+    if (potTop) {
+      this.#views.get(potTop.id)?.setPlayable(true);
+    }
+  }
+
+  private getActiveTileIds(state: GameStateSnapshot): Set<number> {
+    const activeTileIds = new Set<number>();
+
+    state.columns.forEach((column) => {
+      column.forEach((tile) => activeTileIds.add(tile.id));
+    });
+
+    state.pot.forEach((tile) => activeTileIds.add(tile.id));
+    return activeTileIds;
+  }
+
+  private animateMatchedTilesAndRerender(beforeState: GameStateSnapshot, afterState: GameStateSnapshot): void {
+    const beforeIds = this.getActiveTileIds(beforeState);
+    const afterIds = this.getActiveTileIds(afterState);
+    const removedIds = [...beforeIds].filter((tileId) => !afterIds.has(tileId));
+
+    if (removedIds.length === 0) {
+      this.render();
+      this.notifyStatusChangeIfNeeded();
+      return;
+    }
+
+    this.#isMatchAnimating = true;
+    removedIds.forEach((tileId) => {
+      this.#views.get(tileId)?.markMatched();
+      this.#views.get(tileId)?.setPlayable(false);
+    });
+
+    this.#matchAnimationTimeoutId = window.setTimeout(() => {
+      this.#matchAnimationTimeoutId = undefined;
+      this.#isMatchAnimating = false;
+      this.render();
+      this.notifyStatusChangeIfNeeded();
+    }, this.#matchAnimationMs);
+  }
+
+  private handleActionResult(beforeState: GameStateSnapshot, outcome: GameActionOutcome): void {
+    if (outcome === GameActionOutcome.Ignored) {
+      return;
+    }
+
+    const afterState = this.#engine.getState();
+    if (outcome === GameActionOutcome.Matched) {
+      this.animateMatchedTilesAndRerender(beforeState, afterState);
+      return;
+    }
+
+    this.render();
+    this.notifyStatusChangeIfNeeded();
+  }
+
+  private cancelMatchAnimation(): void {
+    if (this.#matchAnimationTimeoutId !== undefined) {
+      window.clearTimeout(this.#matchAnimationTimeoutId);
+      this.#matchAnimationTimeoutId = undefined;
+    }
+
+    this.#isMatchAnimating = false;
+  }
+
   private readonly clickBoard = (event: MouseEvent): void => {
+    if (this.#isMatchAnimating) {
+      return;
+    }
+
     this.clearHintHighlight();
     const boardRect = this.#boardElement.getBoundingClientRect();
     const x = event.clientX - boardRect.left;
@@ -270,10 +367,8 @@ export class MahjongGame {
       return;
     }
 
+    const beforeState = this.#engine.getState();
     const result = this.#engine.placeSelectedPotTile(clickedColumn);
-    if (result.outcome !== GameActionOutcome.Ignored) {
-      this.render();
-      this.notifyStatusChangeIfNeeded();
-    }
+    this.handleActionResult(beforeState, result.outcome);
   };
 }
