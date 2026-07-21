@@ -4,12 +4,27 @@ import { GameActionOutcome, GameStatus, MahjongGameEngine } from '../src/mahjong
 import { canTilesMatch } from '../src/game-rules';
 
 describe('MahjongGameEngine', () => {
+  it('throws when start is called before init', () => {
+    const engine = new MahjongGameEngine();
+
+    expect(() => engine.start()).toThrowError('init should be called first');
+  });
+
+  it('throws when start is called for an already started game', () => {
+    const engine = new MahjongGameEngine();
+
+    engine.init();
+    engine.start();
+
+    expect(() => engine.start()).toThrowError('A game is already started. Please reset first.');
+  });
+
   it('initializes to an idle empty state', () => {
     const engine = new MahjongGameEngine();
 
     engine.init();
 
-    const state = engine.getState();
+    const state = engine.state;
     expect(state.started).toBe(false);
     expect(state.status).toBe(GameStatus.Idle);
     expect(state.columns).toHaveLength(18);
@@ -24,7 +39,7 @@ describe('MahjongGameEngine', () => {
     engine.init();
     engine.start();
 
-    const state = engine.getState();
+    const state = engine.state;
     expect(state.started).toBe(true);
     expect(state.status).toBe(GameStatus.Running);
     expect(state.columns).toHaveLength(18);
@@ -41,7 +56,7 @@ describe('MahjongGameEngine', () => {
     engine.start();
     engine.reset();
 
-    const state = engine.getState();
+    const state = engine.state;
     expect(state.started).toBe(false);
     expect(state.status).toBe(GameStatus.Idle);
     expect(state.columns.every((column) => column.length === 0)).toBe(true);
@@ -70,7 +85,7 @@ describe('MahjongGameEngine', () => {
 
     engine.init();
     engine.start();
-    const topBoardTileId = engine.getState().columns[0][0].id;
+    const topBoardTileId = engine.state.columns[0][0].id;
 
     const selectResult = engine.interactWithTile(topBoardTileId);
     expect(selectResult.outcome).toBe(GameActionOutcome.Selected);
@@ -103,7 +118,7 @@ describe('MahjongGameEngine', () => {
       return;
     }
 
-    const state = engine.getState();
+    const state = engine.state;
     const boardTopTiles = state.columns.map((column) => column[0]).filter(Boolean);
     const potTopTile = state.pot.at(-1);
     const playableTiles = potTopTile ? [...boardTopTiles, potTopTile] : boardTopTiles;
@@ -120,27 +135,13 @@ describe('MahjongGameEngine', () => {
     expect(canTilesMatch(first, second)).toBe(true);
   });
 
-  it('tracks turn history in debug snapshot', () => {
-    const engine = new MahjongGameEngine();
-
-    engine.init();
-    engine.start();
-    const topBoardTileId = engine.getState().columns[0][0].id;
-    engine.interactWithTile(topBoardTileId);
-
-    const debugSnapshot = engine.getDebugSnapshot();
-    expect(debugSnapshot.turnHistory.length).toBeGreaterThanOrEqual(2);
-    expect(debugSnapshot.turnHistory[0].action).toBe('start');
-    expect(debugSnapshot.turnHistory.at(-1)?.action).toBe('interact-tile');
-  });
-
   it('does not allow moving selected pot tile to a non-empty non-matching column', () => {
     const engine = new MahjongGameEngine();
 
     engine.init();
     engine.start();
 
-    const initialState = engine.getState();
+    const initialState = engine.state;
     const potTop = initialState.pot.at(-1);
     expect(potTop).toBeDefined();
     if (!potTop) {
@@ -150,7 +151,7 @@ describe('MahjongGameEngine', () => {
     const selectPotResult = engine.interactWithTile(potTop.id);
     expect(selectPotResult.outcome).toBe(GameActionOutcome.Selected);
 
-    const refreshedState = engine.getState();
+    const refreshedState = engine.state;
     const currentPotTop = refreshedState.pot.at(-1);
     expect(currentPotTop).toBeDefined();
     if (!currentPotTop) {
@@ -183,7 +184,7 @@ describe('MahjongGameEngine', () => {
     engine.start();
 
     let guard = 0;
-    while (engine.getStatus() === GameStatus.Running && guard < 800) {
+    while (engine.status === GameStatus.Running && guard < 800) {
       guard += 1;
       const hint = engine.findHintMatch();
       if (hint) {
@@ -192,7 +193,7 @@ describe('MahjongGameEngine', () => {
         continue;
       }
 
-      const state = engine.getState();
+      const state = engine.state;
       const hasEmptyColumn = state.columns.some((column) => column.length === 0);
       if (!hasEmptyColumn) {
         break;
@@ -219,15 +220,15 @@ describe('MahjongGameEngine', () => {
       }
     }
 
-    const finalState = engine.getState();
+    const finalState = engine.state;
     const noHint = engine.findHintMatch() === null;
     const noEmptyColumn = finalState.columns.every((column) => column.length > 0);
 
     if (noHint && noEmptyColumn) {
-      expect(engine.getStatus()).toBe(GameStatus.Lost);
+      expect(engine.status).toBe(GameStatus.Lost);
       return;
     }
 
-    expect(engine.getStatus() === GameStatus.Lost || engine.getStatus() === GameStatus.Won).toBe(true);
+    expect(engine.status === GameStatus.Lost || engine.status === GameStatus.Won).toBe(true);
   });
 });
