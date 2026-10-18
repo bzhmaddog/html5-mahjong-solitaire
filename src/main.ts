@@ -2,15 +2,6 @@ import '../scss/main.scss';
 import { Difficulty, HintRequestOutcome, MahjongGame } from './mahjong-game';
 import { GameStatus } from './mahjong-game-engine';
 
-declare global {
-  interface Window {
-    getPot?: () => void;
-    getBoard?: (columnIndex: number, tileIndex: number) => void;
-    getGameDebugSnapshot?: () => unknown;
-    getGameDebugSnapshotJson?: () => string;
-  }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   const boardEl = document.getElementById('ui-board');
   const rightEl = document.getElementById('ui-right');
@@ -50,8 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const updateHintButton = (): void => {
-    const remainingHints = game.getRemainingHints();
-    const canUseHint = game.getStatus() === GameStatus.Running;
+    const remainingHints = game.remainingHints;
+    const canUseHint = game.status === GameStatus.Running;
     hintButtonEl.textContent = `Hint (${remainingHints})`;
     hintButtonEl.disabled = remainingHints <= 0 || !canUseHint;
   };
@@ -69,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const startGame = (): void => {
-    if (game.isStarted()) {
+    if (game.isStarted) {
       game.reset();
     }
 
@@ -132,10 +123,6 @@ document.addEventListener('DOMContentLoaded', () => {
   game.setDifficulty(Difficulty.Medium);
   updateHintButton();
 
-  window.getPot = () => game.getPot();
-  window.getBoard = (columnIndex, tileIndex) => game.getBoard(columnIndex, tileIndex);
-  window.getGameDebugSnapshot = () => game.getDebugSnapshot();
-  window.getGameDebugSnapshotJson = () => game.getDebugSnapshotJson();
 
   document.documentElement.classList.remove('preload');
 });

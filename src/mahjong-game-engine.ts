@@ -1,5 +1,6 @@
 import { canTilesMatch } from './game-rules';
-import { TileInfo, TileType } from './mahjong-tile';
+import { DeckTileState, GameDeck } from './game-deck';
+import { TileInfo } from './mahjong-tile';
 
 enum SelectionSource {
   Board = 'board',
@@ -46,117 +47,84 @@ export interface GameStateSnapshot {
   trash: GameTileState[];
 }
 
-export interface EngineDebugSnapshot {
-  state: GameStateSnapshot;
-  selectedTileId?: number;
-  selectedFrom?: 'board' | 'pot';
-  deck: GameTileState[];
-  turnHistory: TurnHistoryEntry[];
-}
-
-export type TurnAction = 'start' | 'interact-tile' | 'place-selected-pot-tile' | 'reset';
-
-export interface TurnHistoryEntry {
-  turn: number;
-  timestamp: string;
-  action: TurnAction;
-  statusBefore: GameStatus;
-  statusAfter: GameStatus;
-  outcome?: GameActionOutcome;
-  changed?: boolean;
-  tileId?: number;
-  columnIndex?: number;
-}
-
 export class MahjongGameEngine {
-  readonly #columnCount = 18;
-  readonly #maxStartShuffleAttempts = 64;
-  #initDone = false;
-  #status = GameStatus.Idle;
-  #deck: GameTileState[] = [];
-  #columns: GameTileState[][] = [];
-  #pot: GameTileState[] = [];
-  #trash: GameTileState[] = [];
-  #selectedTileId?: number;
-  #selectedFrom?: SelectionSource;
-  #turnHistory: TurnHistoryEntry[] = [];
-  #turnCounter = 0;
+  private readonly columnCount = 18;
+  private readonly startBoardTilesPerColumn = 6;
+  private readonly initialStartShuffleIterations = 5;
+  private readonly retryStartShuffleIterations = 1;
+  private readonly maxStartShuffleAttempts = 64;
+  private readonly deck = new GameDeck();
+  private initDone = false;
+  private gameStatus = GameStatus.Idle;
+  private columns: GameTileState[][] = [];
+  private pot: GameTileState[] = [];
+  private trash: GameTileState[] = [];
+  private selectedTileId?: number;
+  private selectedFrom?: SelectionSource;
 
   init(): void {
-    if (this.#initDone) {
+    if (this.initDone) {
       return;
     }
 
-    this.resetDeck();
-    this.shuffleDeck(5);
+    this.deck.reset();
     this.resetGameState();
-    this.#initDone = true;
+    this.initDone = true;
   }
 
   reset(): void {
-    if (!this.#initDone) {
+    if (!this.initDone) {
       return;
     }
 
-    const previousStatus = this.#status;
-    this.resetDeck();
-    this.shuffleDeck(5);
+    this.deck.reset();
     this.resetGameState();
-    this.recordTurn({
-      action: 'reset',
-      statusBefore: previousStatus,
-      statusAfter: this.#status
-    });
   }
 
   start(): void {
-    if (!this.#initDone) {
+    if (!this.initDone) {
       throw new Error('init should be called first');
     }
 
-    if (this.isStarted()) {
+    if (this.isStarted) {
       throw new Error('A game is already started. Please reset first.');
     }
 
-    let didFindPlayableStart = false;
-    for (let attempt = 0; attempt < this.#maxStartShuffleAttempts; attempt += 1) {
-      if (attempt > 0) {
-        this.shuffleDeck(1);
-      }
-
-      this.dealFromDeck();
-      this.#status = GameStatus.Running;
-      this.updateStatus();
-      if (this.#status === GameStatus.Running) {
-        didFindPlayableStart = true;
-        break;
-      }
-    }
-
-    if (!didFindPlayableStart) {
+    if (!this.dealUntilPlayableStart()) {
       this.resetGameState();
       throw new Error('Unable to generate a playable starting board. Please try again.');
     }
-
-    this.resetTurnHistory();
-    const previousStatus = GameStatus.Idle;
-    this.recordTurn({
-      action: 'start',
-      statusBefore: previousStatus,
-      statusAfter: this.#status
-    });
   }
 
-  isStarted(): boolean {
-    return this.#status !== GameStatus.Idle;
+  private dealUntilPlayableStart(): boolean {
+    for (let attempt = 0; attempt < this.maxStartShuffleAttempts; attempt += 1) {
+      // Prime the first start attempt with a stronger shuffle, then light reshuffles.
+      this.shuffleDeck(
+        attempt === 0
+          ? this.initialStartShuffleIterations
+          : this.retryStartShuffleIterations
+      );
+      this.dealFromDeck();
+      this.gameStatus = GameStatus.Running;
+      this.updateStatus();
+      if (this.gameStatus === GameStatus.Running) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
-  getStatus(): GameStatus {
-    return this.#status;
+  get isStarted(): boolean {
+    return this.gameStatus !== GameStatus.Idle;
+  }
+
+  get status(): GameStatus {
+    return this.gameStatus;
   }
 
   findHintMatch(): GameHint | null {
-    if (this.#status !== GameStatus.Running) {
+    if (this.gameStatus !== GameStatus.Running) {
       return null;
     }
 
@@ -186,41 +154,21 @@ export class MahjongGameEngine {
   }
 
   interactWithTile(tileId: number): GameActionResult {
-    const statusBefore = this.#status;
-
-    if (!this.isStarted()) {
-      const result = this.createActionResult(GameActionOutcome.Ignored, false);
-      this.recordTurn({
-        action: 'interact-tile',
-        statusBefore,
-        statusAfter: result.status,
-        outcome: result.outcome,
-        changed: result.changed,
-        tileId
-      });
-      return result;
+    if (!this.isStarted) {
+      return this.createActionResult(GameActionOutcome.Ignored, false);
     }
 
     const tile = this.findTileById(tileId);
     if (!tile || !tile.visible) {
-      const result = this.createActionResult(GameActionOutcome.Ignored, false);
-      this.recordTurn({
-        action: 'interact-tile',
-        statusBefore,
-        statusAfter: result.status,
-        outcome: result.outcome,
-        changed: result.changed,
-        tileId
-      });
-      return result;
+      return this.createActionResult(GameActionOutcome.Ignored, false);
     }
 
     let result: GameActionResult;
-    if (tile.id === this.#selectedTileId) {
+    if (tile.id === this.selectedTileId) {
       this.clearSelection();
       result = this.createActionResult(GameActionOutcome.SelectionCleared, true);
     } else {
-      const potTile = this.#pot.at(-1);
+      const potTile = this.pot.at(-1);
       if (potTile && potTile.id === tile.id) {
         result = this.handlePotTileClick(tile);
       } else {
@@ -233,75 +181,29 @@ export class MahjongGameEngine {
       }
     }
 
-    this.recordTurn({
-      action: 'interact-tile',
-      statusBefore,
-      statusAfter: result.status,
-      outcome: result.outcome,
-      changed: result.changed,
-      tileId
-    });
     return result;
   }
 
   placeSelectedPotTile(columnIndex: number): GameActionResult {
-    const statusBefore = this.#status;
-
-    if (!this.isStarted()) {
-      const result = this.createActionResult(GameActionOutcome.Ignored, false);
-      this.recordTurn({
-        action: 'place-selected-pot-tile',
-        statusBefore,
-        statusAfter: result.status,
-        outcome: result.outcome,
-        changed: result.changed,
-        columnIndex
-      });
-      return result;
+    if (!this.isStarted) {
+      return this.createActionResult(GameActionOutcome.Ignored, false);
     }
 
-    if (!this.#selectedTileId || this.#selectedFrom !== SelectionSource.Pot) {
-      const result = this.createActionResult(GameActionOutcome.Ignored, false);
-      this.recordTurn({
-        action: 'place-selected-pot-tile',
-        statusBefore,
-        statusAfter: result.status,
-        outcome: result.outcome,
-        changed: result.changed,
-        columnIndex
-      });
-      return result;
+    if (!this.selectedTileId || this.selectedFrom !== SelectionSource.Pot) {
+      return this.createActionResult(GameActionOutcome.Ignored, false);
     }
 
-    if (columnIndex < 0 || columnIndex >= this.#columnCount) {
-      const result = this.createActionResult(GameActionOutcome.Ignored, false);
-      this.recordTurn({
-        action: 'place-selected-pot-tile',
-        statusBefore,
-        statusAfter: result.status,
-        outcome: result.outcome,
-        changed: result.changed,
-        columnIndex
-      });
-      return result;
+    if (columnIndex < 0 || columnIndex >= this.columnCount) {
+      return this.createActionResult(GameActionOutcome.Ignored, false);
     }
 
     const selectedTile = this.findSelectedTile();
     if (!selectedTile) {
-      const result = this.createActionResult(GameActionOutcome.Ignored, false);
-      this.recordTurn({
-        action: 'place-selected-pot-tile',
-        statusBefore,
-        statusAfter: result.status,
-        outcome: result.outcome,
-        changed: result.changed,
-        columnIndex
-      });
-      return result;
+      return this.createActionResult(GameActionOutcome.Ignored, false);
     }
 
     let result: GameActionResult;
-    const topTile = this.#columns[columnIndex][0];
+    const topTile = this.columns[columnIndex][0];
     if (topTile && this.canMatch(selectedTile, topTile)) {
       result = this.handleBoardTileClick(columnIndex);
     } else if (!topTile) {
@@ -312,155 +214,61 @@ export class MahjongGameEngine {
       result = this.createActionResult(GameActionOutcome.Ignored, false);
     }
 
-    this.recordTurn({
-      action: 'place-selected-pot-tile',
-      statusBefore,
-      statusAfter: result.status,
-      outcome: result.outcome,
-      changed: result.changed,
-      columnIndex
-    });
     return result;
   }
 
-  // Compatibility wrappers for older callers.
-  clickTile(tileId: number): void {
-    this.interactWithTile(tileId);
-  }
-
-  clickColumn(columnIndex: number): void {
-    this.placeSelectedPotTile(columnIndex);
-  }
-
-  getState(): GameStateSnapshot {
+  get state(): GameStateSnapshot {
     return {
-      columnCount: this.#columnCount,
-      started: this.isStarted(),
-      status: this.#status,
-      columns: this.#columns.map((column) => column.map((tile) => ({ ...tile }))),
-      pot: this.#pot.map((tile) => ({ ...tile })),
-      trash: this.#trash.map((tile) => ({ ...tile }))
+      columnCount: this.columnCount,
+      started: this.isStarted,
+      status: this.gameStatus,
+      columns: this.columns.map((column) => column.map((tile) => ({ ...tile }))),
+      pot: this.pot.map((tile) => ({ ...tile })),
+      trash: this.trash.map((tile) => ({ ...tile }))
     };
-  }
-
-  getDebugSnapshot(): EngineDebugSnapshot {
-    return {
-      state: this.getState(),
-      selectedTileId: this.#selectedTileId,
-      selectedFrom: this.#selectedFrom,
-      deck: this.#deck.map((tile) => ({ ...tile })),
-      turnHistory: this.#turnHistory.map((entry) => ({ ...entry }))
-    };
-  }
-
-  private resetTurnHistory(): void {
-    this.#turnHistory = [];
-    this.#turnCounter = 0;
-  }
-
-  private recordTurn(entry: Omit<TurnHistoryEntry, 'turn' | 'timestamp'>): void {
-    this.#turnCounter += 1;
-    this.#turnHistory.push({
-      turn: this.#turnCounter,
-      timestamp: new Date().toISOString(),
-      ...entry
-    });
-
-    if (this.#turnHistory.length > 500) {
-      this.#turnHistory.shift();
-    }
-  }
-
-  private resetDeck(): void {
-    this.#deck = [];
-    let id = 1;
-
-    for (let copy = 0; copy < 4; copy += 1) {
-      for (let type = TileType.Wheels; type <= TileType.Bamboos; type += 1) {
-        for (let value = 1; value <= 9; value += 1) {
-          this.#deck.push(this.createTile(id, type, value));
-          id += 1;
-        }
-      }
-
-      for (let value = 1; value <= 7; value += 1) {
-        this.#deck.push(this.createTile(id, TileType.Winds, value));
-        id += 1;
-      }
-    }
-
-    for (let value = 1; value <= 8; value += 1) {
-      this.#deck.push(this.createTile(id, TileType.Flowers, value));
-      id += 1;
-    }
   }
 
   private shuffleDeck(iterations = 1): void {
-    for (let iteration = 0; iteration < iterations; iteration += 1) {
-      for (let index = this.#deck.length - 1; index > 0; index -= 1) {
-        const swapIndex = Math.floor(Math.random() * (index + 1));
-        [this.#deck[index], this.#deck[swapIndex]] = [this.#deck[swapIndex], this.#deck[index]];
-      }
-    }
-  }
-
-  private createTile(id: number, type: TileType, value: number): GameTileState {
-    return {
-      id,
-      type,
-      value,
-      visible: false,
-      selected: false
-    };
-  }
-
-  private cloneDeckTile(index: number): GameTileState {
-    return { ...this.#deck[index] };
+    this.deck.shuffle(iterations);
   }
 
   private dealFromDeck(): void {
-    this.#columns = this.createEmptyBoard();
-    this.#pot = [];
-    this.#trash = [];
+    const dealtState = this.deck.deal(this.columnCount, this.startBoardTilesPerColumn);
+    this.columns = this.toGameTileColumns(dealtState.columns);
+    this.pot = this.toGameTiles(dealtState.pot);
+    this.trash = [];
     this.clearSelection();
 
-    let columnIndex = 0;
-    for (let index = 0; index < 108; index += 1) {
-      const tile = this.cloneDeckTile(index);
-      this.#columns[columnIndex].push(tile);
-      columnIndex += 1;
-
-      if (columnIndex >= this.#columnCount) {
-        columnIndex = 0;
-      }
-    }
-
-    for (let index = 108; index < this.#deck.length; index += 1) {
-      this.#pot.push(this.cloneDeckTile(index));
-    }
-
-    this.#columns.forEach((column) => {
+    this.columns.forEach((column) => {
       if (column[0]) {
         this.revealTile(column[0]);
       }
     });
 
-    const topPotTile = this.#pot.at(-1);
+    const topPotTile = this.pot.at(-1);
     if (topPotTile) {
       this.revealTile(topPotTile);
     }
   }
 
   private createEmptyBoard(): GameTileState[][] {
-    return Array.from({ length: this.#columnCount }, () => [] as GameTileState[]);
+    return Array.from({ length: this.columnCount }, () => [] as GameTileState[]);
+  }
+
+  private toGameTiles(tiles: DeckTileState[]): GameTileState[] {
+    return tiles.map((tile) => ({ ...tile }));
+  }
+
+  private toGameTileColumns(columns: DeckTileState[][]): GameTileState[][] {
+    return columns.map((column) => this.toGameTiles(column));
   }
 
   private resetGameState(): void {
-    this.#columns = this.createEmptyBoard();
-    this.#pot = [];
-    this.#trash = [];
+    this.columns = this.createEmptyBoard();
+    this.pot = [];
+    this.trash = [];
     this.clearSelection();
-    this.#status = GameStatus.Idle;
+    this.gameStatus = GameStatus.Idle;
   }
 
   private revealTile(tile: GameTileState): void {
@@ -471,7 +279,7 @@ export class MahjongGameEngine {
     return {
       outcome,
       changed,
-      status: this.#status
+      status: this.gameStatus
     };
   }
 
@@ -481,28 +289,35 @@ export class MahjongGameEngine {
       selectedTile.selected = false;
     }
 
-    this.#selectedTileId = undefined;
-    this.#selectedFrom = undefined;
+    this.selectedTileId = undefined;
+    this.selectedFrom = undefined;
   }
 
   private setSelection(tile: GameTileState, source: SelectionSource): void {
     this.clearSelection();
     tile.selected = true;
-    this.#selectedTileId = tile.id;
-    this.#selectedFrom = source;
+    this.selectedTileId = tile.id;
+    this.selectedFrom = source;
   }
 
   private findTileById(tileId: number): GameTileState | undefined {
-    return this.#columns.flat().find((tile) => tile.id === tileId) ?? this.#pot.find((tile) => tile.id === tileId);
+    for (const column of this.columns) {
+      const tile = column.find((candidateTile) => candidateTile.id === tileId);
+      if (tile) {
+        return tile;
+      }
+    }
+
+    return this.pot.find((tile) => tile.id === tileId);
   }
 
   private findSelectedTile(): GameTileState | undefined {
-    return this.#selectedTileId ? this.findTileById(this.#selectedTileId) : undefined;
+    return this.selectedTileId ? this.findTileById(this.selectedTileId) : undefined;
   }
 
   private findBoardTile(tileId: number): { columnIndex: number; tileIndex: number } | undefined {
-    for (let columnIndex = 0; columnIndex < this.#columnCount; columnIndex += 1) {
-      const tileIndex = this.#columns[columnIndex].findIndex((tile) => tile.id === tileId);
+    for (let columnIndex = 0; columnIndex < this.columnCount; columnIndex += 1) {
+      const tileIndex = this.columns[columnIndex].findIndex((tile) => tile.id === tileId);
       if (tileIndex >= 0) {
         return { columnIndex, tileIndex };
       }
@@ -521,15 +336,15 @@ export class MahjongGameEngine {
       return;
     }
 
-    const movedTile = this.#pot.pop();
+    const movedTile = this.pot.pop();
     if (!movedTile || movedTile.id !== selectedTile.id) {
       return;
     }
 
     movedTile.selected = false;
     movedTile.visible = true;
-    this.#columns[columnIndex].splice(0, 0, movedTile);
-    const topPotTile = this.#pot.at(-1);
+    this.columns[columnIndex].splice(0, 0, movedTile);
+    const topPotTile = this.pot.at(-1);
     if (topPotTile) {
       this.revealTile(topPotTile);
     }
@@ -539,28 +354,28 @@ export class MahjongGameEngine {
   private removeMatchedTile(tile: GameTileState): void {
     const boardLocation = this.findBoardTile(tile.id);
     if (boardLocation) {
-      const [removedTile] = this.#columns[boardLocation.columnIndex].splice(boardLocation.tileIndex, 1);
+      const [removedTile] = this.columns[boardLocation.columnIndex].splice(boardLocation.tileIndex, 1);
       if (removedTile) {
         removedTile.selected = false;
-        this.#trash.push(removedTile);
+        this.trash.push(removedTile);
       }
 
-      const nextBoardTopTile = this.#columns[boardLocation.columnIndex][0];
+      const nextBoardTopTile = this.columns[boardLocation.columnIndex][0];
       if (nextBoardTopTile) {
         this.revealTile(nextBoardTopTile);
       }
       return;
     }
 
-    const potIndex = this.#pot.findIndex((potTile) => potTile.id === tile.id);
+    const potIndex = this.pot.findIndex((potTile) => potTile.id === tile.id);
     if (potIndex >= 0) {
-      const [removedTile] = this.#pot.splice(potIndex, 1);
+      const [removedTile] = this.pot.splice(potIndex, 1);
       if (removedTile) {
         removedTile.selected = false;
-        this.#trash.push(removedTile);
+        this.trash.push(removedTile);
       }
 
-      const topPotTile = this.#pot.at(-1);
+      const topPotTile = this.pot.at(-1);
       if (topPotTile) {
         this.revealTile(topPotTile);
       }
@@ -587,7 +402,7 @@ export class MahjongGameEngine {
   }
 
   private handleBoardTileClick(columnIndex: number): GameActionResult {
-    const tile = this.#columns[columnIndex][0];
+    const tile = this.columns[columnIndex][0];
     if (!tile) {
       return this.createActionResult(GameActionOutcome.Ignored, false);
     }
@@ -610,7 +425,7 @@ export class MahjongGameEngine {
       return this.createActionResult(GameActionOutcome.Matched, true);
     }
 
-    if (this.#selectedFrom === SelectionSource.Pot) {
+    if (this.selectedFrom === SelectionSource.Pot) {
       return this.placeSelectedPotTile(columnIndex);
     }
 
@@ -618,14 +433,14 @@ export class MahjongGameEngine {
   }
 
   private getPlayableTiles(): GameTileState[] {
-    const boardTopTiles = this.#columns.map((column) => column[0]).filter((tile): tile is GameTileState => Boolean(tile));
-    const potTopTile = this.#pot.at(-1);
+    const boardTopTiles = this.columns.map((column) => column[0]).filter((tile): tile is GameTileState => Boolean(tile));
+    const potTopTile = this.pot.at(-1);
 
     return potTopTile ? [...boardTopTiles, potTopTile] : boardTopTiles;
   }
 
   private hasAnyPlayableMove(): boolean {
-    const boardTopTiles = this.#columns.map((column) => column[0]).filter((tile): tile is GameTileState => Boolean(tile));
+    const boardTopTiles = this.columns.map((column) => column[0]).filter((tile): tile is GameTileState => Boolean(tile));
     for (let i = 0; i < boardTopTiles.length; i += 1) {
       for (let j = i + 1; j < boardTopTiles.length; j += 1) {
         if (this.canMatch(boardTopTiles[i], boardTopTiles[j])) {
@@ -634,13 +449,13 @@ export class MahjongGameEngine {
       }
     }
 
-    const potTopTile = this.#pot.at(-1);
+    const potTopTile = this.pot.at(-1);
     if (potTopTile) {
       if (boardTopTiles.some((boardTile) => this.canMatch(potTopTile, boardTile))) {
         return true;
       }
 
-      if (this.#columns.some((column) => column.length === 0)) {
+      if (this.columns.some((column) => column.length === 0)) {
         return true;
       }
     }
@@ -649,21 +464,21 @@ export class MahjongGameEngine {
   }
 
   private updateStatus(): void {
-    if (this.#status === GameStatus.Idle) {
+    if (this.gameStatus === GameStatus.Idle) {
       return;
     }
 
-    const hasTilesLeft = this.#columns.some((column) => column.length > 0) || this.#pot.length > 0;
+    const hasTilesLeft = this.columns.some((column) => column.length > 0) || this.pot.length > 0;
     if (!hasTilesLeft) {
-      this.#status = GameStatus.Won;
+      this.gameStatus = GameStatus.Won;
       return;
     }
 
     if (!this.hasAnyPlayableMove()) {
-      this.#status = GameStatus.Lost;
+      this.gameStatus = GameStatus.Lost;
       return;
     }
 
-    this.#status = GameStatus.Running;
+    this.gameStatus = GameStatus.Running;
   }
 }

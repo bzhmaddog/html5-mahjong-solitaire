@@ -15,7 +15,7 @@ export default defineConfig({
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: 'coverage',
       include: ['src/**/*.ts'],
-      exclude: ['src/vite-env.d.ts']
+      exclude: ['src/vite-env.d.ts', 'src/main.ts']
     }
   },
   build: {
