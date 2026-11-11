@@ -1,36 +1,66 @@
 name: Publish to GitHub Pages
+
+# Deploys only releases: push a version tag (e.g. `git tag v1.2.0 && git push origin v1.2.0`).
+# A tag is deployed only if it is the highest vX.Y.Z version and its commit is on main,
+# so pushing an older tag never replaces the live site with older code.
+# Running the workflow manually (re)deploys the latest release.
 on:
   workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'public/**'
-      - 'scss/**'
-      - 'index.html'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vite.config.js'
-      - 'tsconfig.json'
-      - '.github/workflows/publish.yml'
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  publish:
+  latest-release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: check
+        run: |
+          latest=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          if [ -z "$latest" ]; then
+            echo "::error::No release tag (vX.Y.Z) found."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_NAME" != "$latest" ]; then
+            echo "::notice::$GITHUB_REF_NAME is not the latest release ($latest), skipping deploy."
+            exit 0
+          fi
+          if ! git merge-base --is-ancestor "$latest" origin/main; then
+            echo "::error::$latest is not on main, refusing to deploy."
+            exit 1
+          fi
+          echo "Deploying $latest"
+          echo "tag=$latest" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: latest-release
+    if: needs.latest-release.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.latest-release.outputs.tag }}
+          fetch-depth: 0 # full history + tags, needed for the version shown on the home page
+
       - uses: actions/setup-node@v5
         with:
           node-version: 24

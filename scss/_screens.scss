@@ -104,6 +104,16 @@
 		}
 	}
 
+	.appVersion {
+		position: fixed;
+		right: 8px;
+		bottom: 6px;
+		font-family: monospace;
+		font-size: 11px;
+		color: rgba(255, 255, 255, 0.55);
+		pointer-events: none;
+	}
+
 }
 
 #game {

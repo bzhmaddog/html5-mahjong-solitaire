@@ -1,5 +1,6 @@
 {
   "name": "html5-mahjong-solitaire",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +13,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "prepare": "husky"
+    "prepare": "husky",
+    "preversion": "npm run lint && npm run typecheck && npm run test:run"
   },
   "lint-staged": {
     "*.{js,mjs,cjs,ts,tsx}": [
