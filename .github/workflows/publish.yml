@@ -1,23 +1,47 @@
 name: Publish to GitHub Pages
 
-# Deploys only releases: push a version tag (e.g. `git tag v1.2.0 && git push origin v1.2.0`).
-# A tag is deployed only if it is the highest vX.Y.Z version and its commit is on main,
-# so pushing an older tag never replaces the live site with older code.
-# Running the workflow manually (re)deploys the latest release.
+# Deploys the site when a GitHub Release is published.
+#
+# The github-pages environment only accepts deployments from main, and a run
+# started by a release runs from its tag. So the release run only checks the
+# release and re-dispatches this workflow on main; that main run deploys.
+#
+# Only the repository's "Latest" release is deployed: drafts, pre-releases and
+# releases published with "Set as the latest release" unticked are skipped.
+# Running the workflow manually (re)deploys the current latest release.
 on:
   workflow_dispatch:
-  push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  release:
+    types: [published]
 
 permissions:
   contents: read
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
+  # Release run: hand over to a run on main.
+  dispatch:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          latest=$(gh release view --json tagName --jq .tagName)
+          if [ "$RELEASE_TAG" != "$latest" ]; then
+            echo "::notice::$RELEASE_TAG is not the latest release ($latest), skipping deploy."
+            exit 0
+          fi
+          gh workflow run publish.yml --ref main
+          echo "::notice::Deploy of $RELEASE_TAG started in a new run on main."
+
+  # Run on main (dispatched above, or started manually): find what to deploy.
   latest-release:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.check.outputs.tag }}
@@ -27,15 +51,14 @@ jobs:
           fetch-depth: 0
 
       - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          latest=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          git fetch --tags --force
+          latest=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
           if [ -z "$latest" ]; then
-            echo "::error::No release tag (vX.Y.Z) found."
+            echo "::error::No published GitHub release found."
             exit 1
-          fi
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_NAME" != "$latest" ]; then
-            echo "::notice::$GITHUB_REF_NAME is not the latest release ($latest), skipping deploy."
-            exit 0
           fi
           if ! git merge-base --is-ancestor "$latest" origin/main; then
             echo "::error::$latest is not on main, refusing to deploy."
@@ -48,6 +71,9 @@ jobs:
     needs: latest-release
     if: needs.latest-release.outputs.tag != ''
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     permissions:
       contents: read
       pages: write

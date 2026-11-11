@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { defineConfig } from 'vitest/config';
 
-// Version shown on the home screen, from the latest git tag (create one with `git tag v1.2.0`):
+// Version shown on the home screen, from the latest git tag (created by `npm version` / a GitHub release):
 //   v1.2.0              built exactly from the tagged commit
 //   v1.2.0-3-g1c1bfdf   3 commits after v1.2.0, at commit 1c1bfdf
 //   ...-dirty           built with uncommitted changes
