@@ -1,5 +1,14 @@
 # html5-mahjong-solitaire
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=bzhmaddog_html5-mahjong-solitaire&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=bzhmaddog_html5-mahjong-solitaire)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=bzhmaddog_html5-mahjong-solitaire&metric=coverage)](https://sonarcloud.io/summary/new_code?id=bzhmaddog_html5-mahjong-solitaire)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=bzhmaddog_html5-mahjong-solitaire&metric=bugs)](https://sonarcloud.io/summary/new_code?id=bzhmaddog_html5-mahjong-solitaire)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=bzhmaddog_html5-mahjong-solitaire&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=bzhmaddog_html5-mahjong-solitaire)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=bzhmaddog_html5-mahjong-solitaire&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=bzhmaddog_html5-mahjong-solitaire)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=bzhmaddog_html5-mahjong-solitaire&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=bzhmaddog_html5-mahjong-solitaire)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=bzhmaddog_html5-mahjong-solitaire&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=bzhmaddog_html5-mahjong-solitaire)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=bzhmaddog_html5-mahjong-solitaire&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=bzhmaddog_html5-mahjong-solitaire)
+
 Mahjong Solitaire built with Vite, TypeScript, SCSS, and Vitest.
 
 ## Overview
@@ -17,7 +26,8 @@ For rules currently implemented by the engine, see `GAME_RULES.md`.
 ## Quick Start
 
 ```bash
-npm install
+npm install --ignore-scripts
+npm run prepare   # installs the husky git hooks (skipped by --ignore-scripts)
 npm run dev
 ```
 
